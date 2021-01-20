@@ -1,9 +1,16 @@
+#!/usr/bin/env python
+""" tools to modify homevideos such as:
+        create and imprint timestamp subtitles
+        combine several videos with a crossfade transition 
+"""
+
 import sys, os
 import pathlib
+from pathlib import Path
 import datetime
 from datetime import timedelta
 import subprocess
-from pathlib import Path
+import tool_settings
 
 FFMPEG = "tools/ffmpeg.exe"
 FFPROBE = "tools/ffprobe.exe"
@@ -28,38 +35,37 @@ def format_datecode(mtime, t, with_seconds=False):
     else:
         return new_time.strftime("%I:%M %p\n%b %d %Y")
 
-def create_subtitles(file):
-    print(file)
+def create_subtitles(file, tsettings):
+    #print(file)
     fs = pathlib.Path(file)
     mtime = datetime.datetime.fromtimestamp(fs.stat().st_mtime)
     dur = get_duration(file)
-    print(dur)
-    
+    #print(dur)
+
     with open(str(file) + ".srt", 'w') as f:
         for i in range(0, dur):
             f.write("{}\n{} --> {}\n{}\n\n".format(
                 i+1,
                 format_timecode(i),
                 format_timecode(i + 1),
-                format_datecode(mtime,i)
+                format_datecode(mtime, i, tsettings.include_seconds)
             ))
 
-def write_subtitle_to_video(file):
+def write_subtitle_to_video(file, tsettings):
     subname = str(file) + ".srt"
     if not (os.path.exists(file) or \
             os.path.exists(subname)):
         print("video or subtitle does not exist")
         return
 
-    """ Alignment values 
-        1 = bottom left, 2 = bottom center, 3 = bottom right 
-        color values
-        ABGR where alpha FF is full transparent
-    """
-    subargs = subname + ":force_style='Alignment=1," + \
-                                      "FontSize=12," + \
-                                      "PrimaryColour=&H55FFFFFF," + \
-                                      "OutlineColour=&H55000000'"
+    subargs = "{}:force_style='Alignment={},FontSize={},PrimaryColour=&H{},OutlineColour=&H{}'".format(
+        subname,
+        tsettings.alignment,
+        tsettings.font_size,
+        tsettings.primary_color,
+        tsettings.outline_color
+    )
+    #print(subargs)
 
     args = [FFMPEG,
             "-hide_banner",
@@ -69,8 +75,11 @@ def write_subtitle_to_video(file):
             "-crf", "18",
             "-c:v", "libx264",
             "-y",
-            "out/output_size.mp4"]
+            "out/output.mp4"]
     subprocess.call(args)
+
+    if tsettings.delete_after_imprint:
+        os.remove(subname)
 
 def crossfade_two(f1, f2):
     if not (os.path.exists(f1) or \
@@ -94,17 +103,20 @@ def crossfade_two(f1, f2):
             "-y",
             "out/fadeout.mp4"]
     subprocess.call(args)
-            
 
-if len(sys.argv) > 1:
-    for f in Path(sys.argv[1]).glob("*.MPG"):
-        create_subtitles(f)
-        write_subtitle_to_video(f)
-else:
-    f = 'samples/M2U00059.MPG'
-    f1 = 'samples/M2U00059.MPG'
-    f2 = 'samples/M2U00006.MPG'
-    create_subtitles(f)
-    write_subtitle_to_video(f)
-    #crossfade_two(f1, f2)
-    
+def main(tsettings):
+    if tsettings.in_test:
+        f = 'samples/M2U00059.MPG'
+        f1 = 'samples/M2U00059.MPG'
+        f2 = 'samples/M2U00006.MPG'
+        create_subtitles(f, tsettings)
+        write_subtitle_to_video(f, tsettings)
+        #crossfade_two(f1, f2)
+    else:
+        for f in Path(sys.argv[1]).glob("*.MPG"):
+            create_subtitles(f, tsettings)
+            write_subtitle_to_video(f, tsettings)
+
+if __name__ == "__main__":
+    tsettings = tool_settings.ToolSettings()
+    main(tsettings)
