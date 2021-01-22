@@ -51,21 +51,22 @@ def create_subtitles(file, tsettings):
                 format_datecode(mtime, i, tsettings.include_seconds)
             ))
 
-def write_subtitle_to_video(file, tsettings):
-    subname = str(file) + ".srt"
+def write_subtitle_to_video(file, out_folder, tsettings):
+    subname = "{}.srt".format(str(file))
     if not (os.path.exists(file) or \
             os.path.exists(subname)):
         print("video or subtitle does not exist")
         return
 
     subargs = "{}:force_style='Alignment={},FontSize={},PrimaryColour=&H{},OutlineColour=&H{}'".format(
-        subname,
+        subname.replace(":", "\\\\:"),
         tsettings.alignment,
         tsettings.font_size,
         tsettings.primary_color,
         tsettings.outline_color
     )
-    #print(subargs)
+
+    out_file = os.path.join(out_folder, os.path.basename(file))
 
     args = [FFMPEG,
             "-hide_banner",
@@ -75,7 +76,7 @@ def write_subtitle_to_video(file, tsettings):
             "-crf", "18",
             "-c:v", "libx264",
             "-y",
-            "out/output.mp4"]
+            out_file]
     subprocess.call(args)
 
     if tsettings.delete_after_imprint:
@@ -110,12 +111,12 @@ def main(tsettings):
         f1 = 'samples/M2U00059.MPG'
         f2 = 'samples/M2U00006.MPG'
         create_subtitles(f, tsettings)
-        write_subtitle_to_video(f, tsettings)
+        write_subtitle_to_video(f, 'out', tsettings)
         #crossfade_two(f1, f2)
-    else:
-        for f in Path(sys.argv[1]).glob("*.MPG"):
-            create_subtitles(f, tsettings)
-            write_subtitle_to_video(f, tsettings)
+    # else:
+    #     for f in Path(sys.argv[1]).glob("*.MPG"):
+    #         create_subtitles(f, tsettings)
+    #         write_subtitle_to_video(f, tsettings)
 
 if __name__ == "__main__":
     tsettings = tool_settings.ToolSettings()
