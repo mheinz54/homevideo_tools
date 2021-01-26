@@ -26,8 +26,7 @@ class ToolsGui:
             text="Subtitles", 
             width=30,
             command=self.btn_click_subtitle_page,
-            relief="sunken"
-            )
+            relief="sunken")
         self.btn_subtitle.grid(row=0, column=0, padx=5, pady=2, sticky="nwes")
 
         self.btn_merge = tk.Button(
@@ -35,8 +34,7 @@ class ToolsGui:
             text="Merge", 
             width=30,
             command=self.btn_click_merge_page,
-            relief="raised"
-            )
+            relief="raised")
         self.btn_merge.grid(row=0, column=1, padx=5, pady=2, sticky="nwes")
 
         self.btn_settings = tk.Button(
@@ -44,8 +42,7 @@ class ToolsGui:
             text="Settings", 
             width=30,
             command=self.btn_click_settings_page,
-            relief="raised"
-            )
+            relief="raised")
         self.btn_settings.grid(row=0, column=2, padx=5, pady=2, sticky="nwes")
 
         # main frame 

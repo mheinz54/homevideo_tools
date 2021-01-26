@@ -14,6 +14,7 @@ INI_OUTLINE_COLOR = "outline_color"
 INI_FONT_SIZE = "font_size"
 INI_FONT = "font"
 INI_DELETE_AFTER_IMPRINT = "delete_after_imprint"
+INI_USE_24HOUR_FORMAT = "use_24hour_format"
 INI_SEC_CROSSFADE = "CROSSFADE"
 INI_DURATION = "durration"
 INI_SEC_TESTING = "TESTING"
@@ -23,7 +24,7 @@ SETTINGS_FILE = 'settings.ini'
 
 class ToolSettings:
     def __init__(self):
-        self.__config = configparser.ConfigParser()
+        self.__config = configparser.ConfigParser(allow_no_value=True, comment_prefixes='/',)
         self.__config.read(SETTINGS_FILE)
         self.__sub_settings = self.__config[INI_SEC_SUBTITLES]
         self.__test_settings = self.__config[INI_SEC_TESTING]
@@ -43,10 +44,10 @@ class ToolSettings:
             raise ValueError("value is not an int")
 
     def __color_value(self, value):
-        if re.compile("[A-F0-9]{8}").match(value) is not None:
+        if re.compile("[a-zA-F0-9]{8}").match(value) is not None:
             return value
         else:
-            raise ValueError("value is not a color, ABGR 8 characters hex")
+            raise ValueError(value + " is not a color, ABGR 8 characters hex")
 
     def save_settings(self):
         with open(SETTINGS_FILE, 'w') as f:
@@ -112,7 +113,7 @@ class ToolSettings:
         return self.__sub_settings.get(INI_FONT)
 
     @font.setter
-    def delete_after_imprint(self, value):
+    def font(self, value):
         self.__config.set(INI_SEC_SUBTITLES, INI_FONT, value)
 
     # delete_after_imprint getter/setter
@@ -123,3 +124,12 @@ class ToolSettings:
     @delete_after_imprint.setter
     def delete_after_imprint(self, value):
         self.__config.set(INI_SEC_SUBTITLES, INI_DELETE_AFTER_IMPRINT, self.__boolean_value(value))
+
+    # use_24hour_format getter/setter
+    @property
+    def use_24hour_format(self):
+        return self.__sub_settings.getboolean(INI_USE_24HOUR_FORMAT)
+
+    @use_24hour_format.setter
+    def use_24hour_format(self, value):
+        self.__config.set(INI_SEC_SUBTITLES, INI_USE_24HOUR_FORMAT, self.__boolean_value(value))

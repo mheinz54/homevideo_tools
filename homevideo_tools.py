@@ -28,12 +28,14 @@ def format_timecode(s):
     t = datetime.datetime(1,1,1) + timedelta(seconds=s)
     return t.strftime("%H:%M:%S.000")
 
-def format_datecode(mtime, t, with_seconds=False):
+def format_datecode(mtime, t, with_seconds, use_24hour_format):
     new_time = mtime + timedelta(seconds=t)
+    hour = "H" if use_24hour_format else "I"
+    m = "" if use_24hour_format else "%p"
     if with_seconds:
-        return new_time.strftime("%I:%M:%S %p\n%b %d %Y")
+        return new_time.strftime("%{}:%M:%S {}\n%b %d %Y".format(hour, m))
     else:
-        return new_time.strftime("%I:%M %p\n%b %d %Y")
+        return new_time.strftime("%{}:%M {}\n%b %d %Y".format(hour, m))
 
 def create_subtitles(file, tsettings):
     #print(file)
@@ -48,7 +50,7 @@ def create_subtitles(file, tsettings):
                 i+1,
                 format_timecode(i),
                 format_timecode(i + 1),
-                format_datecode(mtime, i, tsettings.include_seconds)
+                format_datecode(mtime, i, tsettings.include_seconds, tsettings.use_24hour_format)
             ))
 
 def write_subtitle_to_video(file, out_folder, tsettings):
@@ -58,9 +60,10 @@ def write_subtitle_to_video(file, out_folder, tsettings):
         print("video or subtitle does not exist")
         return
 
-    subargs = "{}:force_style='Alignment={},FontSize={},PrimaryColour=&H{},OutlineColour=&H{}'".format(
+    subargs = "{}:force_style='Alignment={},FontName={},FontSize={},PrimaryColour=&H{},OutlineColour=&H{}'".format(
         subname.replace(":", "\\\\:"),
         tsettings.alignment,
+        tsettings.font,
         tsettings.font_size,
         tsettings.primary_color,
         tsettings.outline_color

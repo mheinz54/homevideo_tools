@@ -80,14 +80,14 @@ class FunctionPage(tk.Frame):
             ).grid(row=6, column=1, padx=2, sticky="nw")
 
         self.ent_folder = tk.Entry(master=self, width=75)
-        self.ent_folder.grid(row=6, column=2, padx=5, pady=2, sticky="nwes")
+        self.ent_folder.grid(row=6, column=2, padx=5, pady=(2,5), sticky="nwes")
 
         self.progress = ttk.Progressbar(
             master=self, 
             orient = tk.HORIZONTAL, 
             length = 100, 
             mode = 'determinate')
-        self.progress.grid(row=7, column=0, columnspan=4, padx=5, pady=2, sticky="nwes")
+        self.progress.grid(row=7, column=0, columnspan=4, padx=5, pady=5, sticky="nwes")
     # end _init__
 
     def select_files(self):
