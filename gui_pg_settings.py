@@ -135,7 +135,29 @@ class SettingsPage(tk.Frame):
             variable=self.chk_24_var,
             command=self.hour_format_changed
         ).grid(row=current_row, column=0, padx=(20, 5), pady=5, sticky="news")
+
+        current_row = 0
+
+        tk.Label(
+            master=self,
+            text="Any changes to settings are applied immediatly.\nSave to keep settings after app closes",
+            justify="left"
+        ).grid(row=current_row, column=3, columnspan=2, padx=5, pady=(15, 5), sticky="nws")
+
+        current_row += 1
+
+        # save button
+        tk.Button(
+            master=self, 
+            text="Save",
+            command=self.save_settings,
+            width=15
+            ).grid(row=current_row, column=4, padx=5, pady=5, sticky="nes")
     # ----------------------- end of __init__ -----------------------
+
+    def save_settings(self):
+        settings = self.controller.tsettings
+        settings.save_settings()
 
     def invoke_font_diag(self):
         settings = self.controller.tsettings

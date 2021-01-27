@@ -37,7 +37,8 @@ class SubtitlePage(gui_pg.FunctionPage):
     def run_sub_overlay(self):
         self.progress['value'] = 0
         settings = self.controller.tsettings
-        total = self.listbox.size() * 2
+        tfiles = self.listbox.size()
+        total = tfiles * 2
         if total == 0:
             self.set_status_text("need to select files", "red")
             return
@@ -53,7 +54,7 @@ class SubtitlePage(gui_pg.FunctionPage):
 
                 homevideo_tools.write_subtitle_to_video(f, outpath, settings)
                 self.progress['value'] = ((i + 1) * 2) / total * 100
-                self.set_status_text("{} out of {} done".format(i + 1, listbox.size()), "green")
+                self.set_status_text("{} out of {} done".format(i + 1, tfiles), "green")
                 self.controller.window.update_idletasks()
             self.set_status_text("finished", "green")
         else:
