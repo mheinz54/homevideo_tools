@@ -26,13 +26,12 @@ class MergePage(gui_pg.FunctionPage):
             return
 
         self.set_status_text("running", "green")
+        self.controller.window.update_idletasks()
 
         outpath = self.ent_folder.get()
         if os.path.isdir(outpath):
-            for i, f in enumerate(self.listbox.get(0, tk.END)):
-                #homevideo_tools.create_subtitles(f, settings)
-                self.progress['value'] = (i + 1) / total * 100
-                self.controller.window.update_idletasks()
+            homevideo_tools.crossfade_multiple(self.listbox.get(0, tk.END), outpath, settings)
+            self.progress['value'] = 100
             self.set_status_text("finished", "green")
         else:
             self.set_status_text("need to set folder", "red")

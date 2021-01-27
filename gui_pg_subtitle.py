@@ -29,6 +29,7 @@ class SubtitlePage(gui_pg.FunctionPage):
         for i, f in enumerate(self.listbox.get(0, tk.END)):
             homevideo_tools.create_subtitles(f, settings)
             self.progress['value'] = (i + 1) / total * 100
+            self.set_status_text("{} out of {} done".format(i + 1, total), "green")
             self.controller.window.update_idletasks()
         self.set_status_text("finished", "green")
 
@@ -52,6 +53,7 @@ class SubtitlePage(gui_pg.FunctionPage):
 
                 homevideo_tools.write_subtitle_to_video(f, outpath, settings)
                 self.progress['value'] = ((i + 1) * 2) / total * 100
+                self.set_status_text("{} out of {} done".format(i + 1, listbox.size()), "green")
                 self.controller.window.update_idletasks()
             self.set_status_text("finished", "green")
         else:

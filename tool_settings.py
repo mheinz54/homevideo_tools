@@ -19,6 +19,7 @@ INI_SEC_CROSSFADE = "CROSSFADE"
 INI_DURATION = "durration"
 INI_SEC_TESTING = "TESTING"
 INI_IN_TEST = "in_test"
+INI_IN_SHOW_LOG = "show_log"
 
 SETTINGS_FILE = 'settings.ini'
 
@@ -61,6 +62,15 @@ class ToolSettings:
     @in_test.setter
     def in_test(self, value):
         self.__config.set(INI_SEC_TESTING, INI_IN_TEST, self.__boolean_value(value))
+
+    # show_log getter/setter
+    @property
+    def show_log(self):
+        return self.__test_settings.getboolean(INI_IN_SHOW_LOG)
+
+    @show_log.setter
+    def show_log(self, value):
+        self.__config.set(INI_SEC_TESTING, INI_IN_SHOW_LOG, self.__boolean_value(value))
 
     # include_seconds getter/setter
     @property
