@@ -15,13 +15,32 @@ import tool_settings
 FFMPEG = "tools/ffmpeg.exe"
 FFPROBE = "tools/ffprobe.exe"
 
+def print_durations(fname):
+    """ shows durations of audio and video stream for a video"""
+    args = [FFPROBE,
+            "-loglevel", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            fname]
+    dv = float(subprocess.check_output(args))
+
+    args = [FFPROBE,
+            "-loglevel", "error",
+            "-select_streams", "a:0",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            fname]
+    av = float(subprocess.check_output(args))
+    print("video: {}\naudio: {}\n".format(dv, av))
+
 def get_duration(fname):
     args = [FFPROBE,
             "-loglevel", "error",
             "-show_entries", "format=duration",
             "-of", "default=noprint_wrappers=1:nokey=1",
             fname]
-    duration = int(float(subprocess.check_output(args)))
+    duration = float(subprocess.check_output(args))
     return duration
 
 def format_timecode(s):
@@ -40,7 +59,7 @@ def format_datecode(mtime, t, with_seconds, use_24hour_format):
 def create_subtitles(file, tsettings):
     fs = pathlib.Path(file)
     mtime = datetime.datetime.fromtimestamp(fs.stat().st_mtime)
-    dur = get_duration(file)
+    dur = int(get_duration(file))
 
     with open(str(file) + ".srt", 'w') as f:
         for i in range(0, dur):
@@ -67,7 +86,8 @@ def write_subtitle_to_video(file, out_folder, tsettings):
         tsettings.outline_color
     )
 
-    out_file = os.path.join(out_folder, os.path.basename(file))
+    op = os.path
+    out_file = op.join(out_folder, op.splitext(op.basename(file))[0]) + ".mp4"
 
     args = [FFMPEG,
             "-hide_banner",
@@ -76,6 +96,9 @@ def write_subtitle_to_video(file, out_folder, tsettings):
             "-vf", "subtitles=" + subargs + "[sub];[sub]yadif=1",
             "-crf", "18",
             "-c:v", "libx264",
+            "-pix_fmt", "yuv420p",
+            #"-preset", "veryfast",
+            #"-shortest",
             "-y",
             out_file]
     subprocess.call(args)
@@ -88,21 +111,26 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
         example below:
 
         ffmpeg -i v0.mp4 -i v1.mp4 -i v2.mp4 -i v3.mp4 -i v4.mp4 -filter_complex \
-        "[0][1]xfade=transition=fade:duration=0.5:offset=3.5[V01]; \
-        [V01][2]xfade=transition=fade:duration=0.5:offset=12.1[V02]; \
-        [V02][3]xfade=transition=fade:duration=0.5:offset=15.1[V03]; \
-        [V03][4]xfade=transition=fade:duration=0.5:offset=22.59,format=yuv420p[video]; \
-        [0:a][1:a]acrossfade=d=0.5:c1=tri:c2=tri[A01]; \
-        [A01][2:a]acrossfade=d=0.5:c1=tri:c2=tri[A02]; \
-        [A02][3:a]acrossfade=d=0.5:c1=tri:c2=tri[A03]; \
-        [A03][4:a]acrossfade=d=0.5:c1=tri:c2=tri[audio]" \
+        "[0][1]xfade=transition=fade:duration=0.5:offset=3.500000[V01]; \
+        [V01][2]xfade=transition=fade:duration=0.5:offset=6.366667[V02]; \
+        [V02][3]xfade=transition=fade:duration=0.5:offset=13.800000[V03]; \
+        [V03][4]xfade=transition=fade:duration=0.5:offset=20.433333,format=yuv420p[video]; \
+        [0:a]aresample=async=1:first_pts=0,apad,atrim=0:4[AR0]; \
+        [1:a]aresample=async=1:first_pts=0,apad,atrim=0:3.366667[AR1]; \
+        [2:a]aresample=async=1:first_pts=0,apad,atrim=0:7.933333[AR2]; \
+        [3:a]aresample=async=1:first_pts=0,apad,atrim=0:7.133333[AR3]; \
+        [4:a]aresample=async=1:first_pts=0,apad,atrim=0:6.566667[AR4]; \
+        [AR0][AR1]acrossfade=d=0.5:c1=tri:c2=tri[AF1]; \
+        [AF1][AR2]acrossfade=d=0.5:c1=tri:c2=tri[AF2]; \
+        [AF2][AR3]acrossfade=d=0.5:c1=tri:c2=tri[AF3]; \
+        [AF3][AR4]acrossfade=d=0.5:c1=tri:c2=tri[audio]" \
         -map "[video]" -map "[audio]" -movflags +faststart out.mp4
         ___________________________________________________________________________________
         | input  | input duration | + | previous xfade offset | - | xfade duration | =     |
         | v0.mp4 | 4.00           | + | 0                     | - | 0.5            | 3.5   |
-        | v1.mp4 | 9.19           | + | 3.5                   | - | 0.5            | 12.1  |
-        | v2.mp4 | 3.41           | + | 12.1                  | - | 0.5            | 15.1  |
-        | v3.mp4 | 7.99           | + | 15.1                  | - | 0.5            | 22.59 |
+        | v1.mp4 | 3.367          | + | 3.5                   | - | 0.5            | 6.367 |
+        | v2.mp4 | 7.93           | + | 6.367                 | - | 0.5            | 13.8  |
+        | v3.mp4 | 7.133          | + | 13.8                  | - | 0.5            | 20.43 |
     """
     if not os.path.exists(out_folder):
         raise ValueError(out_folder + " folder does not exist")
@@ -115,11 +143,13 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
 
     input_arg = ""
     filter_v = ""
-    filter_a = ""
+    filter_afade = ""
+    filter_asample = ""
     prev_vfeed = "[0:v]"
-    prev_afeed = "[0:a]"
-    prev_offset = 0
+    prev_afeed = "[AR0]"
+    prev_offset = 0.0
     xfade_dur = 1.0
+
     for i, f in enumerate(lst_files):
         input_arg += " -i " + f
 
@@ -137,8 +167,14 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
             prev_vfeed = curr_vfeed
             prev_offset = offset
 
-            curr_afeed = "[A0{}]".format(i + 1)
-            filter_a += "{}[{}:a]acrossfade=d={}:c1=tri:c2=tri{};".format(
+            filter_asample += "[{}:a]aresample=async=1:first_pts=0,apad,atrim=0:{}[AR{}];".format(
+                i,      # input feed index
+                dur,    # duration of feed
+                i       # ouput feed index
+            )
+
+            curr_afeed = "[AF{}]".format(i + 1)
+            filter_afade += "{}[AR{}]acrossfade=d={}:c1=tri:c2=tri{};".format(
                 prev_afeed, # input audio feed
                 i + 1,      # source audio index
                 xfade_dur,  # duraction of fade
@@ -146,25 +182,37 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
             )
             prev_afeed = curr_afeed
         else:
+            dur = get_duration(f)
+
             filter_v += "{}yadif=1[video];".format(prev_vfeed)
             prev_vfeed = "[video]"
 
-    filter_arg = filter_v + filter_a[:-1]
-    map_arg = "-map {} -map {}".format(prev_vfeed, prev_afeed)
+            filter_asample += "[{}:a]aresample=async=1:first_pts=0,apad,atrim=0:{}[AR{}];".format(
+                i,      # input feed index
+                dur,    # duration of feed
+                i       # ouput feed index
+            )
+
+    filter_arg = filter_v + filter_asample + filter_afade[:-1]
+    map_arg = ["-map", prev_vfeed, "-map", prev_afeed]
     out_file = os.path.join(out_folder, out_filename)
 
+    # build arguments 
     args = [FFMPEG,
             "-hide_banner",
             "-loglevel", "info" if tsettings.show_log else "error"
     ]
     args += input_arg.strip().split(" ")
     args += ["-filter_complex", filter_arg]
-    args += map_arg.split(" ")
+    args += map_arg
     args += ["-c:v", "libx264",
             "-crf", "18",
+            "-pix_fmt", "yuv420p",
+            #"-preset", "veryfast",
             "-y",
             out_file]
     subprocess.call(args)
+    print(filter_arg)
 
 
 # def crossfade_two(f1, f2):
@@ -192,12 +240,18 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
 
 def main(tsettings):
     if tsettings.in_test:
-        f = 'samples/M2U00059.MPG'
         f1 = 'samples/M2U00059.MPG'
         f2 = 'samples/M2U00006.MPG'
-        #create_subtitles(f, tsettings)
-        #write_subtitle_to_video(f, 'out', tsettings)
-        crossfade_multiple([f, f1], 'out', tsettings)
+        f1_out = 'out/M2U00059.mp4'
+        f2_out = 'out/M2U00006.mp4'
+        fc = 'out/crossfaded.mp4'
+        create_subtitles(f1, tsettings)
+        write_subtitle_to_video(f1, 'out', tsettings)
+        # crossfade_multiple([f3, f3], 'out', tsettings)
+        print_durations(f1)
+        print_durations(f1_out)
+        # for v in Path("E:\\Videos\\Naomi\\2020\\20201030-31_halloween").glob("*.mp4"):
+        #     print_durations(v)
     # else:
     #     for f in Path(sys.argv[1]).glob("*.MPG"):
     #         create_subtitles(f, tsettings)
