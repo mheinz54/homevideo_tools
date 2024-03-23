@@ -20,6 +20,7 @@ INI_DURATION = "durration"
 INI_SEC_TESTING = "TESTING"
 INI_IN_TEST = "in_test"
 INI_IN_SHOW_LOG = "show_log"
+INI_CAMCORDER_YADIF = "camcorder_yadif_filter"
 
 SETTINGS_FILE = 'settings.ini'
 
@@ -143,3 +144,13 @@ class ToolSettings:
     @use_24hour_format.setter
     def use_24hour_format(self, value):
         self.__config.set(INI_SEC_SUBTITLES, INI_USE_24HOUR_FORMAT, self.__boolean_value(value))
+
+
+    # camcorder_yadif_filter getter/setter
+    @property
+    def camcorder_yadif_filter(self):
+        return self.__sub_settings.getboolean(INI_CAMCORDER_YADIF)
+
+    @camcorder_yadif_filter.setter
+    def camcorder_yadif_filter(self, value):
+        self.__config.set(INI_SEC_SUBTITLES, INI_CAMCORDER_YADIF, self.__boolean_value(value))

@@ -58,7 +58,10 @@ def format_datecode(mtime, t, with_seconds, use_24hour_format):
 
 def create_subtitles(file, tsettings):
     fs = pathlib.Path(file)
-    mtime = datetime.datetime.fromtimestamp(fs.stat().st_mtime)
+    if tsettings.camcorder_yadif_filter:
+        mtime = datetime.datetime.fromtimestamp(fs.stat().st_mtime) # for camcorder
+    else:
+        mtime = datetime.datetime.fromtimestamp(fs.stat().st_ctime) # for phone
     dur = int(get_duration(file))
 
     with open(str(file) + ".srt", 'w') as f:
@@ -93,14 +96,16 @@ def write_subtitle_to_video(file, out_folder, tsettings):
             "-hide_banner",
             "-loglevel", "info" if tsettings.show_log else "error",
             "-i", file,
-            "-vf", "subtitles=" + subargs + "[sub];[sub]yadif=1",
+          #   "-vsync", "0",
+            "-vf", "subtitles=" + subargs + "[sub];[sub]yadif=1" if tsettings.camcorder_yadif_filter else "subtitles=" + subargs,
             "-crf", "18",
             "-c:v", "libx264",
             "-pix_fmt", "yuv420p",
-            #"-preset", "veryfast",
+            "-preset", "veryfast",
             #"-shortest",
             "-y",
             out_file]
+    # print(args)
     subprocess.call(args)
 
     if tsettings.delete_after_imprint:
@@ -184,8 +189,9 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
         else:
             dur = get_duration(f)
 
-            filter_v += "{}yadif=1[video];".format(prev_vfeed)
-            prev_vfeed = "[video]"
+            if tsettings.camcorder_yadif_filter:
+                filter_v += "{}yadif=1[video];".format(prev_vfeed) # not sure about yadif, maybe needed for camcorder
+                prev_vfeed = "[video]"
 
             filter_asample += "[{}:a]aresample=async=1:first_pts=0,apad,atrim=0:{}[AR{}];".format(
                 i,      # input feed index
@@ -208,7 +214,7 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
     args += ["-c:v", "libx264",
             "-crf", "18",
             "-pix_fmt", "yuv420p",
-            #"-preset", "veryfast",
+            "-preset", "veryfast",
             "-y",
             out_file]
     subprocess.call(args)
@@ -240,16 +246,17 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
 
 def main(tsettings):
     if tsettings.in_test:
-        f1 = 'samples/M2U00059.MPG'
-        f2 = 'samples/M2U00006.MPG'
-        f1_out = 'out/M2U00059.mp4'
-        f2_out = 'out/M2U00006.mp4'
-        fc = 'out/crossfaded.mp4'
-        create_subtitles(f1, tsettings)
-        write_subtitle_to_video(f1, 'out', tsettings)
+        f1 = 'samples/org.MPG'
+        # print_metadata(f1)
+        # f2 = 'samples/M2U00006.MPG'
+        # f1_out = 'out/M2U00059.mp4'
+        # f2_out = 'out/M2U00006.mp4'
+        # fc = 'out/crossfaded.mp4'
+        # create_subtitles(f1, tsettings)
+        # write_subtitle_to_video(f1, 'out', tsettings)
         # crossfade_multiple([f3, f3], 'out', tsettings)
         print_durations(f1)
-        print_durations(f1_out)
+        # print_durations(f1_out)
         # for v in Path("E:\\Videos\\Naomi\\2020\\20201030-31_halloween").glob("*.mp4"):
         #     print_durations(v)
     # else:

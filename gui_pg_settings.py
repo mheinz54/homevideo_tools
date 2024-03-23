@@ -136,6 +136,17 @@ class SettingsPage(tk.Frame):
             command=self.hour_format_changed
         ).grid(row=current_row, column=0, padx=(20, 5), pady=5, sticky="news")
 
+        current_row += 1
+
+        # check box to use yadif filter
+        self.chk_yadif = tk.IntVar(value=settings.camcorder_yadif_filter)
+        tk.Checkbutton(
+            master=self,
+            text="Use Camcorder yadif filter",
+            variable=self.chk_yadif,
+            command=self.yadif_filter_changed
+        ).grid(row=current_row, column=0, padx=(20, 5), pady=5, sticky="news")
+
         current_row = 0
 
         tk.Label(
@@ -228,6 +239,11 @@ class SettingsPage(tk.Frame):
     def hour_format_changed(self):
         settings = self.controller.tsettings
         settings.use_24hour_format = self.chk_24_var.get()
+        self.set_example_label(settings)
+
+    def yadif_filter_changed(self):
+        settings = self.controller.tsettings
+        settings.camcorder_yadif_filter = self.chk_yadif.get()
         self.set_example_label(settings)
 
     def set_example_label(self, settings):
