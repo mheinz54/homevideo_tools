@@ -3,8 +3,6 @@
 
 import os
 
-from PyQt6.QtWidgets import QApplication
-
 import homevideo_tools
 from gui_qt.function_page import FunctionPage
 
@@ -27,13 +25,12 @@ class MergePage(FunctionPage):
             self.set_status_text("Choose an output folder.", "red")
             return
 
-        self.progress.setValue(0)
-        self.set_status_text("Merging videos...")
-        QApplication.processEvents()
-        homevideo_tools.crossfade_multiple(
-            files,
-            output_folder,
-            self.controller.tsettings,
-        )
-        self.progress.setValue(100)
-        self.set_status_text("Finished.", "green")
+        settings = self.controller.tsettings
+
+        def merge_task(set_status, set_progress):
+            set_status("Merging videos...")
+            homevideo_tools.crossfade_multiple(files, output_folder, settings)
+            set_progress(100)
+            set_status("Finished.", "green")
+
+        self.start_task("Preparing video merge...", merge_task)

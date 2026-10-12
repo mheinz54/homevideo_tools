@@ -190,7 +190,7 @@ def write_subtitle_to_video(file, out_folder, tsettings):
             "-y",
             out_file]
     # print(args)
-    subprocess.call(args)
+    subprocess.run(args, check=True)
 
     if tsettings.delete_after_imprint:
         os.remove(subname)
@@ -298,32 +298,8 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
     args += map_arg
     args += list(_video_encoder_args())
     args += ["-pix_fmt", "yuv420p", "-y", out_file]
-    subprocess.call(args)
+    subprocess.run(args, check=True)
     print(filter_arg)
-
-
-# def crossfade_two(f1, f2):
-#     if not (os.path.exists(f1) or \
-#             os.path.exists(f2)):
-#         print("video does not exist")
-#         return
-
-#     d1 = get_duration(f1)
-#     #cfilter = "xfade=offset=" + str(d1 - 1) + ":duration=1[v];[v]yadif=1;" + \
-#     cfilter = "xfade=offset=" + str(d1 - 1) + ":duration=1;" + \
-#               "acrossfade=d=1:c1=tri:c2=tri"
-
-#     args = [FFMPEG,
-#             "-hide_banner",
-#             "-loglevel", "error",
-#             "-i", f1,
-#             "-i", f2,
-#             "-filter_complex", cfilter,
-#             "-c:v", "libx264",
-#             "-crf", "18",
-#             "-y",
-#             "out/fadeout.mp4"]
-#     subprocess.call(args)
 
 def main(tsettings):
     if tsettings.in_test:

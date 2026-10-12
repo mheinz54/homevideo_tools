@@ -3,6 +3,7 @@
 
 import os
 
+from PyQt6.QtCore import QThread, pyqtSignal
 from PyQt6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
@@ -16,10 +17,30 @@ from PyQt6.QtWidgets import (
 )
 
 
+class TaskThread(QThread):
+    status_changed = pyqtSignal(str, str)
+    progress_changed = pyqtSignal(int)
+    failed = pyqtSignal(str)
+
+    def __init__(self, task, parent=None):
+        super().__init__(parent)
+        self.task = task
+
+    def run(self):
+        try:
+            self.task(self.report_status, self.progress_changed.emit)
+        except Exception as error:
+            self.failed.emit(str(error))
+
+    def report_status(self, text, color=""):
+        self.status_changed.emit(text, color)
+
+
 class FunctionPage(QWidget):
     def __init__(self, controller):
         super().__init__()
         self.controller = controller
+        self._task_thread = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(18, 16, 18, 16)
@@ -101,6 +122,47 @@ class FunctionPage(QWidget):
         self.lbl_status.setText(text)
         color_map = {"red": "#b42318", "green": "#18794e"}
         self.lbl_status.setStyleSheet(f"color: {color_map.get(color, 'inherit')};")
+
+    def start_task(self, initial_status, task):
+        if self._task_thread is not None and self._task_thread.isRunning():
+            return
+
+        self.progress.setValue(0)
+        self.set_status_text(initial_status)
+        self.select_button.setEnabled(False)
+        self.clear_button.setEnabled(False)
+        self.listbox.setEnabled(False)
+        self.ent_folder.setEnabled(False)
+        self.folder_button.setEnabled(False)
+        self.button1.setEnabled(False)
+        self.button2.setEnabled(False)
+        tabs = self.controller.centralWidget()
+        if tabs is not None:
+            tabs.setEnabled(False)
+
+        self._task_thread = TaskThread(task, self)
+        self._task_thread.status_changed.connect(self.set_status_text)
+        self._task_thread.progress_changed.connect(self.progress.setValue)
+        self._task_thread.failed.connect(self.show_task_error)
+        self._task_thread.finished.connect(self.finish_task)
+        self._task_thread.finished.connect(self._task_thread.deleteLater)
+        self._task_thread.start()
+
+    def show_task_error(self, message):
+        self.set_status_text(f"Processing failed: {message}", "red")
+
+    def finish_task(self):
+        self.select_button.setEnabled(True)
+        self.clear_button.setEnabled(True)
+        self.listbox.setEnabled(True)
+        self.ent_folder.setEnabled(True)
+        self.folder_button.setEnabled(True)
+        self.button1.setEnabled(True)
+        self.button2.setEnabled(True)
+        tabs = self.controller.centralWidget()
+        if tabs is not None:
+            tabs.setEnabled(True)
+        self._task_thread = None
 
     def run_button1(self):
         pass

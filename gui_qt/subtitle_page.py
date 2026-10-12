@@ -3,8 +3,6 @@
 
 import os
 
-from PyQt6.QtWidgets import QApplication
-
 import homevideo_tools
 from gui_qt.function_page import FunctionPage
 
@@ -22,14 +20,16 @@ class SubtitlePage(FunctionPage):
             self.set_status_text("Select at least one video.", "red")
             return
 
-        self.progress.setValue(0)
-        self.set_status_text("Creating subtitles...")
-        for index, file in enumerate(files):
-            homevideo_tools.create_subtitles(file, self.controller.tsettings)
-            self.progress.setValue(round((index + 1) / total * 100))
-            self.set_status_text(f"{index + 1} of {total} complete")
-            QApplication.processEvents()
-        self.set_status_text("Finished.", "green")
+        settings = self.controller.tsettings
+
+        def create_subtitle_task(set_status, set_progress):
+            for index, file in enumerate(files):
+                set_status(f"Creating subtitles: {index + 1} of {total}")
+                homevideo_tools.create_subtitles(file, settings)
+                set_progress(round((index + 1) / total * 100))
+            set_status("Finished.", "green")
+
+        self.start_task("Creating subtitles...", create_subtitle_task)
 
     def run_button2(self):
         files = self.selected_files()
@@ -44,15 +44,16 @@ class SubtitlePage(FunctionPage):
             return
 
         total = len(files)
-        self.progress.setValue(0)
-        self.set_status_text("Creating subtitles and rendering video...")
         settings = self.controller.tsettings
-        for index, file in enumerate(files):
-            homevideo_tools.create_subtitles(file, settings)
-            self.progress.setValue(round((index * 2 + 1) / (total * 2) * 100))
-            QApplication.processEvents()
-            homevideo_tools.write_subtitle_to_video(file, output_folder, settings)
-            self.progress.setValue(round((index + 1) / total * 100))
-            self.set_status_text(f"{index + 1} of {total} complete")
-            QApplication.processEvents()
-        self.set_status_text("Finished.", "green")
+
+        def overlay_task(set_status, set_progress):
+            for index, file in enumerate(files):
+                set_status(f"Creating subtitles: {index + 1} of {total}")
+                homevideo_tools.create_subtitles(file, settings)
+                set_progress(round((index * 2 + 1) / (total * 2) * 100))
+                set_status(f"Rendering video: {index + 1} of {total}")
+                homevideo_tools.write_subtitle_to_video(file, output_folder, settings)
+                set_progress(round((index + 1) / total * 100))
+            set_status("Finished.", "green")
+
+        self.start_task("Preparing subtitle overlay...", overlay_task)
