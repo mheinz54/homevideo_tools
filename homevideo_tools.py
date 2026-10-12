@@ -5,15 +5,83 @@
 """
 
 import sys, os
+from functools import lru_cache
+import platform
+import shutil
 import pathlib
 from pathlib import Path
 import datetime
+import json
 from datetime import timedelta
 import subprocess
 import tool_settings
+import re
 
-FFMPEG = "tools/ffmpeg.exe"
-FFPROBE = "tools/ffprobe.exe"
+TOOLS_DIR = Path(__file__).resolve().parent / "tools"
+
+def _find_media_tool(name):
+    if sys.platform == "darwin":
+        architecture = platform.machine().lower()
+        candidates = [
+            TOOLS_DIR / "macos" / architecture / name,
+            TOOLS_DIR / "macos" / "universal" / name,
+            TOOLS_DIR / name,
+            Path("/opt/homebrew/bin") / name,
+            Path("/usr/local/bin") / name,
+        ]
+    elif os.name == "nt":
+        candidates = [
+            TOOLS_DIR / (name + ".exe"),
+            TOOLS_DIR / "windows" / (name + ".exe"),
+        ]
+    else:
+        candidates = []
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return shutil.which(name) or name
+
+FFMPEG = _find_media_tool("ffmpeg")
+FFPROBE = _find_media_tool("ffprobe")
+
+@lru_cache(maxsize=1)
+def _video_encoder_args():
+    if sys.platform == "darwin":
+        try:
+            encoders = subprocess.check_output(
+                [FFMPEG, "-hide_banner", "-encoders"],
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            encoders = ""
+
+        if any(
+            len(fields) > 1 and fields[1] == "h264_videotoolbox"
+            for fields in (line.split() for line in encoders.splitlines())
+        ):
+            return ("-r", "60", "-c:v", "h264_videotoolbox", "-b:v", "8M")
+
+    return ("-r", "60", "-c:v", "libx264", "-crf", "18", "-preset", "veryfast")
+
+@lru_cache(maxsize=1)
+def available_xfade_transitions():
+    try:
+        help_text = subprocess.check_output(
+            [FFMPEG, "-hide_banner", "-h", "filter=xfade"],
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return ["fade"]
+
+    transitions = re.findall(
+        r"^\s+([a-z][a-z0-9_]*)\s+-?\d+\s+.*transition",
+        help_text,
+        flags=re.MULTILINE,
+    )
+    return [transition for transition in transitions if transition != "custom"] or ["fade"]
 
 def print_durations(fname):
     """ shows durations of audio and video stream for a video"""
@@ -42,6 +110,29 @@ def get_duration(fname):
             fname]
     duration = float(subprocess.check_output(args))
     return duration
+
+def needs_deinterlacing(fname):
+    args = [FFPROBE,
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=field_order",
+            "-of", "json",
+            str(fname)]
+    try:
+        probe_result = subprocess.check_output(
+            args,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        streams = json.loads(probe_result).get("streams", [])
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    except json.JSONDecodeError:
+        return False
+    if not streams:
+        return False
+    field_order = streams[0].get("field_order", "unknown").lower()
+    return field_order in {"tt", "bb", "tb", "bt"}
 
 def format_timecode(s):
     t = datetime.datetime(1,1,1) + timedelta(seconds=s)
@@ -80,14 +171,19 @@ def write_subtitle_to_video(file, out_folder, tsettings):
         print("video or subtitle does not exist")
         return
 
-    subargs = "{}:force_style='Alignment={},FontName={},FontSize={},PrimaryColour=&H{},OutlineColour=&H{}'".format(
-        subname.replace(":", "\\\\:"),
+    force_style = "Alignment={},FontName={},FontSize={},PrimaryColour=&H{},OutlineColour=&H{}".format(
         tsettings.alignment,
         tsettings.font,
         tsettings.font_size,
         tsettings.primary_color,
         tsettings.outline_color
     )
+    video_filter = "subtitles=filename={}:force_style='{}'".format(
+        subname.replace(":", "\\\\:"), # fixes windows path issue with ffmpeg subtitles filter
+        force_style
+    )
+    if needs_deinterlacing(file):
+        video_filter += ",yadif=1"
 
     op = os.path
     out_file = op.join(out_folder, op.splitext(op.basename(file))[0]) + ".mp4"
@@ -97,16 +193,14 @@ def write_subtitle_to_video(file, out_folder, tsettings):
             "-loglevel", "info" if tsettings.show_log else "error",
             "-i", file,
           #   "-vsync", "0",
-            "-vf", "subtitles=" + subargs + "[sub];[sub]yadif=1" if tsettings.camcorder_yadif_filter else "subtitles=" + subargs,
-            "-crf", "18",
-            "-c:v", "libx264",
-            "-pix_fmt", "yuv420p",
-            "-preset", "veryfast",
+                        "-vf", video_filter]
+    args += list(_video_encoder_args())
+    args += ["-pix_fmt", "yuv420p",
             #"-shortest",
             "-y",
             out_file]
     # print(args)
-    subprocess.call(args)
+    subprocess.run(args, check=True)
 
     if tsettings.delete_after_imprint:
         os.remove(subname)
@@ -153,7 +247,9 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
     prev_vfeed = "[0:v]"
     prev_afeed = "[AR0]"
     prev_offset = 0.0
-    xfade_dur = 1.0
+    xfade_dur = tsettings.crossfade_duration
+    xfade_transition = tsettings.crossfade_transition
+    deinterlace = needs_deinterlacing(lst_files[0])
 
     for i, f in enumerate(lst_files):
         input_arg += " -i " + f
@@ -162,9 +258,10 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
             curr_vfeed = "[V0{}]".format(i + 1)
             dur = get_duration(f)
             offset = dur + prev_offset - xfade_dur
-            filter_v += "{}[{}]xfade=transition=fade:duration={}:offset={}{};".format(
+            filter_v += "{}[{}]xfade=transition={}:duration={}:offset={}{};".format(
                 prev_vfeed, # input feed
                 i + 1,      # source index
+                xfade_transition,
                 xfade_dur,  # duraction of fade
                 offset,     # offset for video feed
                 curr_vfeed  # output feed
@@ -189,7 +286,7 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
         else:
             dur = get_duration(f)
 
-            if tsettings.camcorder_yadif_filter:
+            if deinterlace:
                 filter_v += "{}yadif=1[video];".format(prev_vfeed) # not sure about yadif, maybe needed for camcorder
                 prev_vfeed = "[video]"
 
@@ -211,38 +308,10 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
     args += input_arg.strip().split(" ")
     args += ["-filter_complex", filter_arg]
     args += map_arg
-    args += ["-c:v", "libx264",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            "-preset", "veryfast",
-            "-y",
-            out_file]
-    subprocess.call(args)
+    args += list(_video_encoder_args())
+    args += ["-pix_fmt", "yuv420p", "-y", out_file]
+    subprocess.run(args, check=True)
     print(filter_arg)
-
-
-# def crossfade_two(f1, f2):
-#     if not (os.path.exists(f1) or \
-#             os.path.exists(f2)):
-#         print("video does not exist")
-#         return
-
-#     d1 = get_duration(f1)
-#     #cfilter = "xfade=offset=" + str(d1 - 1) + ":duration=1[v];[v]yadif=1;" + \
-#     cfilter = "xfade=offset=" + str(d1 - 1) + ":duration=1;" + \
-#               "acrossfade=d=1:c1=tri:c2=tri"
-
-#     args = [FFMPEG,
-#             "-hide_banner",
-#             "-loglevel", "error",
-#             "-i", f1,
-#             "-i", f2,
-#             "-filter_complex", cfilter,
-#             "-c:v", "libx264",
-#             "-crf", "18",
-#             "-y",
-#             "out/fadeout.mp4"]
-#     subprocess.call(args)
 
 def main(tsettings):
     if tsettings.in_test:
