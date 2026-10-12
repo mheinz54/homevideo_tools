@@ -14,7 +14,20 @@ class ToolsGui(QMainWindow):
         super().__init__()
         self.tsettings = tool_settings.ToolSettings()
         self.setWindowTitle("Homevideo Tools")
-        self.setMinimumSize(760, 500)
+
+        screen = QApplication.primaryScreen()
+        if screen is None:
+            self.setMinimumSize(760, 500)
+            self.resize(960, 640)
+        else:
+            available = screen.availableGeometry()
+            width = min(960, available.width())
+            height = min(640, available.height())
+            self.setMinimumSize(min(760, width), min(500, height))
+            self.resize(width, height)
+            frame = self.frameGeometry()
+            frame.moveCenter(available.center())
+            self.move(frame.topLeft())
 
         tabs = QTabWidget()
         tabs.setDocumentMode(True)

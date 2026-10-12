@@ -11,6 +11,7 @@ import shutil
 import pathlib
 from pathlib import Path
 import datetime
+import json
 from datetime import timedelta
 import subprocess
 import tool_settings
@@ -59,9 +60,9 @@ def _video_encoder_args():
             len(fields) > 1 and fields[1] == "h264_videotoolbox"
             for fields in (line.split() for line in encoders.splitlines())
         ):
-            return ("-c:v", "h264_videotoolbox", "-b:v", "8M")
+            return ("-r", "60", "-c:v", "h264_videotoolbox", "-b:v", "8M")
 
-    return ("-c:v", "libx264", "-crf", "18", "-preset", "veryfast")
+    return ("-r", "60", "-c:v", "libx264", "-crf", "18", "-preset", "veryfast")
 
 def print_durations(fname):
     """ shows durations of audio and video stream for a video"""
@@ -90,6 +91,29 @@ def get_duration(fname):
             fname]
     duration = float(subprocess.check_output(args))
     return duration
+
+def needs_deinterlacing(fname):
+    args = [FFPROBE,
+            "-v", "error",
+            "-select_streams", "v:0",
+            "-show_entries", "stream=field_order",
+            "-of", "json",
+            str(fname)]
+    try:
+        probe_result = subprocess.check_output(
+            args,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        streams = json.loads(probe_result).get("streams", [])
+    except (OSError, subprocess.CalledProcessError):
+        return False
+    except json.JSONDecodeError:
+        return False
+    if not streams:
+        return False
+    field_order = streams[0].get("field_order", "unknown").lower()
+    return field_order in {"tt", "bb", "tb", "bt"}
 
 def format_timecode(s):
     t = datetime.datetime(1,1,1) + timedelta(seconds=s)
@@ -148,7 +172,7 @@ def write_subtitle_to_video(file, out_folder, tsettings):
         _escape_filter_value(subname),
         _escape_filter_value(force_style)
     )
-    if tsettings.camcorder_yadif_filter:
+    if needs_deinterlacing(file):
         video_filter += ",yadif=1"
 
     op = os.path
@@ -214,6 +238,7 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
     prev_afeed = "[AR0]"
     prev_offset = 0.0
     xfade_dur = 1.0
+    deinterlace = needs_deinterlacing(lst_files[0])
 
     for i, f in enumerate(lst_files):
         input_arg += " -i " + f
@@ -249,7 +274,7 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
         else:
             dur = get_duration(f)
 
-            if tsettings.camcorder_yadif_filter:
+            if deinterlace:
                 filter_v += "{}yadif=1[video];".format(prev_vfeed) # not sure about yadif, maybe needed for camcorder
                 prev_vfeed = "[video]"
 

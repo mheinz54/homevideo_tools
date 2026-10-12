@@ -38,6 +38,8 @@ class SubtitlePage(FunctionPage):
             self.set_status_text("Select at least one video.", "red")
             return
         if not os.path.isdir(output_folder):
+            output_folder = os.path.dirname(os.path.abspath(files[0]))
+        if not os.path.isdir(output_folder):
             self.set_status_text("Choose an output folder.", "red")
             return
 

@@ -71,10 +71,10 @@ class SettingsPage(QWidget):
         self.chk_24_var.toggled.connect(self.hour_format_changed)
         layout.addWidget(self.chk_24_var)
 
-        self.chk_yadif = QCheckBox("Use camcorder deinterlacing (yadif)")
-        self.chk_yadif.setChecked(settings.camcorder_yadif_filter)
-        self.chk_yadif.toggled.connect(self.yadif_filter_changed)
-        layout.addWidget(self.chk_yadif)
+        self.chk_camcorder_timestamp = QCheckBox("Use camcorder file timestamp")
+        self.chk_camcorder_timestamp.setChecked(settings.camcorder_yadif_filter)
+        self.chk_camcorder_timestamp.toggled.connect(self.camcorder_timestamp_changed)
+        layout.addWidget(self.chk_camcorder_timestamp)
 
         self.lbl_example = QLabel()
         self.lbl_example.setFrameShape(QFrame.Shape.StyledPanel)
@@ -186,7 +186,7 @@ class SettingsPage(QWidget):
         self.controller.tsettings.use_24hour_format = checked
         self.set_example_label(self.controller.tsettings)
 
-    def yadif_filter_changed(self, checked):
+    def camcorder_timestamp_changed(self, checked):
         self.controller.tsettings.camcorder_yadif_filter = checked
         self.set_example_label(self.controller.tsettings)
 
