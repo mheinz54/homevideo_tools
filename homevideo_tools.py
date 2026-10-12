@@ -164,15 +164,6 @@ def create_subtitles(file, tsettings):
                 format_datecode(mtime, i, tsettings.include_seconds, tsettings.use_24hour_format)
             ))
 
-def _escape_filter_value(value):
-    return (str(value)
-            .replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace(":", "\\:")
-            .replace(",", "\\,")
-            .replace("[", "\\[")
-            .replace("]", "\\]"))
-
 def write_subtitle_to_video(file, out_folder, tsettings):
     subname = "{}.srt".format(str(file))
     if not (os.path.exists(file) or \
@@ -187,9 +178,9 @@ def write_subtitle_to_video(file, out_folder, tsettings):
         tsettings.primary_color,
         tsettings.outline_color
     )
-    video_filter = "subtitles=filename='{}':force_style='{}'".format(
-        _escape_filter_value(subname),
-        _escape_filter_value(force_style)
+    video_filter = "subtitles=filename={}:force_style='{}'".format(
+        subname.replace(":", "\\\\:"), # fixes windows path issue with ffmpeg subtitles filter
+        force_style
     )
     if needs_deinterlacing(file):
         video_filter += ",yadif=1"
