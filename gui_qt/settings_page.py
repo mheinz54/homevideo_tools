@@ -10,12 +10,16 @@ from PyQt6.QtWidgets import (
     QFontDialog,
     QFormLayout,
     QFrame,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
+    QDoubleSpinBox,
     QVBoxLayout,
     QWidget,
 )
+
+import homevideo_tools
 
 
 class SettingsPage(QWidget):
@@ -28,9 +32,19 @@ class SettingsPage(QWidget):
         layout.setContentsMargins(24, 20, 24, 20)
         layout.setSpacing(14)
 
-        heading = QLabel("Subtitle Settings")
-        heading.setStyleSheet("font-size: 18px; font-weight: 600;")
-        layout.addWidget(heading)
+        columns = QHBoxLayout()
+        columns.setSpacing(18)
+        subtitle_group = QGroupBox("Subtitle Settings")
+        subtitle_layout = QVBoxLayout(subtitle_group)
+        subtitle_layout.setContentsMargins(16, 20, 16, 16)
+        subtitle_layout.setSpacing(12)
+        crossfade_group = QGroupBox("Crossfade Settings")
+        crossfade_layout = QVBoxLayout(crossfade_group)
+        crossfade_layout.setContentsMargins(16, 20, 16, 16)
+        crossfade_layout.setSpacing(12)
+        columns.addWidget(subtitle_group, 2)
+        columns.addWidget(crossfade_group, 1)
+        layout.addLayout(columns, 1)
 
         form = QFormLayout()
         form.setHorizontalSpacing(18)
@@ -59,28 +73,50 @@ class SettingsPage(QWidget):
         self.cmbx_alignment.setCurrentIndex(settings.alignment - 1)
         self.cmbx_alignment.currentIndexChanged.connect(self.alignment_changed)
         form.addRow("Video alignment", self.cmbx_alignment)
-        layout.addLayout(form)
+        subtitle_layout.addLayout(form)
 
         self.chk_timestamp_var = QCheckBox("Include seconds in timestamp")
         self.chk_timestamp_var.setChecked(settings.include_seconds)
         self.chk_timestamp_var.toggled.connect(self.timestamp_changed)
-        layout.addWidget(self.chk_timestamp_var)
+        subtitle_layout.addWidget(self.chk_timestamp_var)
 
         self.chk_24_var = QCheckBox("Use 24-hour time")
         self.chk_24_var.setChecked(settings.use_24hour_format)
         self.chk_24_var.toggled.connect(self.hour_format_changed)
-        layout.addWidget(self.chk_24_var)
+        subtitle_layout.addWidget(self.chk_24_var)
 
         self.chk_camcorder_timestamp = QCheckBox("Use camcorder file timestamp")
         self.chk_camcorder_timestamp.setChecked(settings.camcorder_yadif_filter)
         self.chk_camcorder_timestamp.toggled.connect(self.camcorder_timestamp_changed)
-        layout.addWidget(self.chk_camcorder_timestamp)
+        subtitle_layout.addWidget(self.chk_camcorder_timestamp)
+
+        crossfade_form = QFormLayout()
+        self.cmbx_transition = QComboBox()
+        transitions = homevideo_tools.available_xfade_transitions()
+        if settings.crossfade_transition not in transitions:
+            transitions.append(settings.crossfade_transition)
+        self.cmbx_transition.addItems(transitions)
+        self.cmbx_transition.setCurrentText(settings.crossfade_transition)
+        self.cmbx_transition.currentTextChanged.connect(self.crossfade_transition_changed)
+        crossfade_form.addRow("Transition", self.cmbx_transition)
+
+        self.spin_crossfade_duration = QDoubleSpinBox()
+        self.spin_crossfade_duration.setRange(0.01, 60.0)
+        self.spin_crossfade_duration.setDecimals(2)
+        self.spin_crossfade_duration.setSingleStep(0.1)
+        self.spin_crossfade_duration.setSuffix(" s")
+        self.spin_crossfade_duration.setValue(settings.crossfade_duration)
+        self.spin_crossfade_duration.valueChanged.connect(self.crossfade_duration_changed)
+        crossfade_form.addRow("Duration", self.spin_crossfade_duration)
+        crossfade_layout.addLayout(crossfade_form)
+        crossfade_layout.addStretch(1)
 
         self.lbl_example = QLabel()
         self.lbl_example.setFrameShape(QFrame.Shape.StyledPanel)
-        self.lbl_example.setMinimumHeight(58)
+        self.lbl_example.setMaximumHeight(70)
         self.lbl_example.setMargin(10)
-        layout.addWidget(self.lbl_example)
+        subtitle_layout.addWidget(self.lbl_example)
+        subtitle_layout.addStretch(1)
 
         bottom = QHBoxLayout()
         self.save_status = QLabel("Changes apply immediately.")
@@ -89,7 +125,6 @@ class SettingsPage(QWidget):
         save_button.clicked.connect(self.save_settings)
         bottom.addWidget(save_button)
         layout.addLayout(bottom)
-        layout.addStretch(1)
 
         self.set_font_label(settings)
         self.set_color_preview(self.lbl_primary, self._setting_to_qcolor(settings.primary_color))
@@ -189,6 +224,12 @@ class SettingsPage(QWidget):
     def camcorder_timestamp_changed(self, checked):
         self.controller.tsettings.camcorder_yadif_filter = checked
         self.set_example_label(self.controller.tsettings)
+
+    def crossfade_transition_changed(self, transition):
+        self.controller.tsettings.crossfade_transition = transition
+
+    def crossfade_duration_changed(self, duration):
+        self.controller.tsettings.crossfade_duration = duration
 
     def set_example_label(self, settings):
         seconds = ":00" if settings.include_seconds else ""

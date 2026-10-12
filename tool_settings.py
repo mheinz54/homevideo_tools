@@ -16,7 +16,8 @@ INI_FONT = "font"
 INI_DELETE_AFTER_IMPRINT = "delete_after_imprint"
 INI_USE_24HOUR_FORMAT = "use_24hour_format"
 INI_SEC_CROSSFADE = "CROSSFADE"
-INI_DURATION = "durration"
+INI_TRANSITION = "transition"
+INI_DURATION = "duration"
 INI_SEC_TESTING = "TESTING"
 INI_IN_TEST = "in_test"
 INI_IN_SHOW_LOG = "show_log"
@@ -29,6 +30,7 @@ class ToolSettings:
         self.__config = configparser.ConfigParser(allow_no_value=True, comment_prefixes='/',)
         self.__config.read(SETTINGS_FILE)
         self.__sub_settings = self.__config[INI_SEC_SUBTITLES]
+        self.__cross_settings = self.__config[INI_SEC_CROSSFADE]
         self.__test_settings = self.__config[INI_SEC_TESTING]
 
     def __boolean_value(self, value):
@@ -145,6 +147,24 @@ class ToolSettings:
     def use_24hour_format(self, value):
         self.__config.set(INI_SEC_SUBTITLES, INI_USE_24HOUR_FORMAT, self.__boolean_value(value))
 
+    @property
+    def crossfade_transition(self):
+        return self.__cross_settings.get(INI_TRANSITION, "fade")
+
+    @crossfade_transition.setter
+    def crossfade_transition(self, value):
+        self.__config.set(INI_SEC_CROSSFADE, INI_TRANSITION, str(value))
+
+    @property
+    def crossfade_duration(self):
+        return self.__cross_settings.getfloat(INI_DURATION, fallback=1.0)
+
+    @crossfade_duration.setter
+    def crossfade_duration(self, value):
+        duration = float(value)
+        if not 0 < duration <= 60:
+            raise ValueError("crossfade duration must be greater than 0 and at most 60 seconds")
+        self.__config.set(INI_SEC_CROSSFADE, INI_DURATION, str(duration))
 
     # camcorder_yadif_filter getter/setter
     @property

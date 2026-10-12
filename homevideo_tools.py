@@ -15,6 +15,7 @@ import json
 from datetime import timedelta
 import subprocess
 import tool_settings
+import re
 
 TOOLS_DIR = Path(__file__).resolve().parent / "tools"
 
@@ -63,6 +64,24 @@ def _video_encoder_args():
             return ("-r", "60", "-c:v", "h264_videotoolbox", "-b:v", "8M")
 
     return ("-r", "60", "-c:v", "libx264", "-crf", "18", "-preset", "veryfast")
+
+@lru_cache(maxsize=1)
+def available_xfade_transitions():
+    try:
+        help_text = subprocess.check_output(
+            [FFMPEG, "-hide_banner", "-h", "filter=xfade"],
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    except (OSError, subprocess.CalledProcessError):
+        return ["fade"]
+
+    transitions = re.findall(
+        r"^\s+([a-z][a-z0-9_]*)\s+-?\d+\s+.*transition",
+        help_text,
+        flags=re.MULTILINE,
+    )
+    return [transition for transition in transitions if transition != "custom"] or ["fade"]
 
 def print_durations(fname):
     """ shows durations of audio and video stream for a video"""
@@ -237,7 +256,8 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
     prev_vfeed = "[0:v]"
     prev_afeed = "[AR0]"
     prev_offset = 0.0
-    xfade_dur = 1.0
+    xfade_dur = tsettings.crossfade_duration
+    xfade_transition = tsettings.crossfade_transition
     deinterlace = needs_deinterlacing(lst_files[0])
 
     for i, f in enumerate(lst_files):
@@ -247,9 +267,10 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
             curr_vfeed = "[V0{}]".format(i + 1)
             dur = get_duration(f)
             offset = dur + prev_offset - xfade_dur
-            filter_v += "{}[{}]xfade=transition=fade:duration={}:offset={}{};".format(
+            filter_v += "{}[{}]xfade=transition={}:duration={}:offset={}{};".format(
                 prev_vfeed, # input feed
                 i + 1,      # source index
+                xfade_transition,
                 xfade_dur,  # duraction of fade
                 offset,     # offset for video feed
                 curr_vfeed  # output feed
