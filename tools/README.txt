@@ -60,3 +60,15 @@ release-essentials build configuration:
     --enable-libvorbis
     --enable-librubberband
 
+For macOS, place executable FFmpeg and FFprobe binaries in one of these folders:
+
+    macos/arm64/ffmpeg       macos/arm64/ffprobe
+    macos/x86_64/ffmpeg      macos/x86_64/ffprobe
+    macos/universal/ffmpeg   macos/universal/ffprobe
+
+The app prefers a matching bundled binary, then checks standard Homebrew locations,
+then falls back to a command found on PATH.
+The binaries must include libass for subtitle rendering and libx264, yadif, and
+xfade support for the app's video operations. Include the applicable FFmpeg
+license and source/build information with any distributed binaries.
+

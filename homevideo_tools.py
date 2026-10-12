@@ -5,6 +5,9 @@
 """
 
 import sys, os
+from functools import lru_cache
+import platform
+import shutil
 import pathlib
 from pathlib import Path
 import datetime
@@ -12,8 +15,53 @@ from datetime import timedelta
 import subprocess
 import tool_settings
 
-FFMPEG = "tools/ffmpeg.exe"
-FFPROBE = "tools/ffprobe.exe"
+TOOLS_DIR = Path(__file__).resolve().parent / "tools"
+
+def _find_media_tool(name):
+    if sys.platform == "darwin":
+        architecture = platform.machine().lower()
+        candidates = [
+            TOOLS_DIR / "macos" / architecture / name,
+            TOOLS_DIR / "macos" / "universal" / name,
+            TOOLS_DIR / name,
+            Path("/opt/homebrew/bin") / name,
+            Path("/usr/local/bin") / name,
+        ]
+    elif os.name == "nt":
+        candidates = [
+            TOOLS_DIR / (name + ".exe"),
+            TOOLS_DIR / "windows" / (name + ".exe"),
+        ]
+    else:
+        candidates = []
+
+    for candidate in candidates:
+        if candidate.is_file():
+            return str(candidate)
+    return shutil.which(name) or name
+
+FFMPEG = _find_media_tool("ffmpeg")
+FFPROBE = _find_media_tool("ffprobe")
+
+@lru_cache(maxsize=1)
+def _video_encoder_args():
+    if sys.platform == "darwin":
+        try:
+            encoders = subprocess.check_output(
+                [FFMPEG, "-hide_banner", "-encoders"],
+                stderr=subprocess.STDOUT,
+                text=True,
+            )
+        except (OSError, subprocess.CalledProcessError):
+            encoders = ""
+
+        if any(
+            len(fields) > 1 and fields[1] == "h264_videotoolbox"
+            for fields in (line.split() for line in encoders.splitlines())
+        ):
+            return ("-c:v", "h264_videotoolbox", "-b:v", "8M")
+
+    return ("-c:v", "libx264", "-crf", "18", "-preset", "veryfast")
 
 def print_durations(fname):
     """ shows durations of audio and video stream for a video"""
@@ -73,6 +121,15 @@ def create_subtitles(file, tsettings):
                 format_datecode(mtime, i, tsettings.include_seconds, tsettings.use_24hour_format)
             ))
 
+def _escape_filter_value(value):
+    return (str(value)
+            .replace("\\", "\\\\")
+            .replace("'", "\\'")
+            .replace(":", "\\:")
+            .replace(",", "\\,")
+            .replace("[", "\\[")
+            .replace("]", "\\]"))
+
 def write_subtitle_to_video(file, out_folder, tsettings):
     subname = "{}.srt".format(str(file))
     if not (os.path.exists(file) or \
@@ -80,14 +137,19 @@ def write_subtitle_to_video(file, out_folder, tsettings):
         print("video or subtitle does not exist")
         return
 
-    subargs = "{}:force_style='Alignment={},FontName={},FontSize={},PrimaryColour=&H{},OutlineColour=&H{}'".format(
-        subname.replace(":", "\\\\:"),
+    force_style = "Alignment={},FontName={},FontSize={},PrimaryColour=&H{},OutlineColour=&H{}".format(
         tsettings.alignment,
         tsettings.font,
         tsettings.font_size,
         tsettings.primary_color,
         tsettings.outline_color
     )
+    video_filter = "subtitles=filename='{}':force_style='{}'".format(
+        _escape_filter_value(subname),
+        _escape_filter_value(force_style)
+    )
+    if tsettings.camcorder_yadif_filter:
+        video_filter += ",yadif=1"
 
     op = os.path
     out_file = op.join(out_folder, op.splitext(op.basename(file))[0]) + ".mp4"
@@ -97,11 +159,9 @@ def write_subtitle_to_video(file, out_folder, tsettings):
             "-loglevel", "info" if tsettings.show_log else "error",
             "-i", file,
           #   "-vsync", "0",
-            "-vf", "subtitles=" + subargs + "[sub];[sub]yadif=1" if tsettings.camcorder_yadif_filter else "subtitles=" + subargs,
-            "-crf", "18",
-            "-c:v", "libx264",
-            "-pix_fmt", "yuv420p",
-            "-preset", "veryfast",
+                        "-vf", video_filter]
+    args += list(_video_encoder_args())
+    args += ["-pix_fmt", "yuv420p",
             #"-shortest",
             "-y",
             out_file]
@@ -211,12 +271,8 @@ def crossfade_multiple(lst_files, out_folder, tsettings, out_filename = "crossfa
     args += input_arg.strip().split(" ")
     args += ["-filter_complex", filter_arg]
     args += map_arg
-    args += ["-c:v", "libx264",
-            "-crf", "18",
-            "-pix_fmt", "yuv420p",
-            "-preset", "veryfast",
-            "-y",
-            out_file]
+    args += list(_video_encoder_args())
+    args += ["-pix_fmt", "yuv420p", "-y", out_file]
     subprocess.call(args)
     print(filter_arg)
 
