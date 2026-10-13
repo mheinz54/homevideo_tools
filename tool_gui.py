@@ -18,11 +18,11 @@ class ToolsGui(QMainWindow):
         screen = QApplication.primaryScreen()
         if screen is None:
             self.setMinimumSize(760, 500)
-            self.resize(960, 640)
+            self.resize(760, 500)
         else:
             available = screen.availableGeometry()
-            width = min(960, available.width())
-            height = min(640, available.height())
+            width = min(760, available.width())
+            height = min(500, available.height())
             self.setMinimumSize(min(760, width), min(500, height))
             self.resize(width, height)
             frame = self.frameGeometry()
